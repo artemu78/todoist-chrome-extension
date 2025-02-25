@@ -1,0 +1,16 @@
+{
+    "manifest_version": 3,
+    "name": "Todoist Completed Tasks",
+    "version": "1.0",
+    "description": "Displays completed Todoist tasks for today on the Todoist page.",
+    "permissions": [],
+    "content_scripts": [
+      {
+        "matches": [
+          "https://app.todoist.com/*"
+        ],
+        "js": ["content.js"],
+        "run_at": "document_idle"
+      }
+    ]
+  }
