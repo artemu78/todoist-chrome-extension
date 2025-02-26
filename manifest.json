@@ -1,16 +1,21 @@
 {
     "manifest_version": 3,
     "name": "Todoist Completed Tasks",
-    "version": "1.0",
+    "version": "1.21",
     "description": "Displays completed Todoist tasks for today on the Todoist page.",
-    "permissions": [],
+    "permissions": ["identity", "storage"],
+    "background": {
+      "service_worker": "background.js"
+    },
     "content_scripts": [
       {
-        "matches": [
-          "https://app.todoist.com/*"
-        ],
+        "matches": ["https://app.todoist.com/app/*"],
         "js": ["content.js"],
         "run_at": "document_idle"
       }
-    ]
+    ],
+    "oauth2": {
+      "client_id": "861dd34bcb0048d1bdc8a866fd10d4b4",
+      "scopes": ["data:read_write"]
+    }
   }
