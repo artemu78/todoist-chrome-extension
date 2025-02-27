@@ -14,6 +14,32 @@ const getTodayDate = () => {
   }
 };
 
+// Get the start of the week (Monday) in Todoist-compatible format (YYYY-MM-DD)
+const getStartOfWeekDate = () => {
+  try {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    const startOfWeek = new Date(today.setDate(diff));
+    return startOfWeek.toISOString().split("T")[0];
+  } catch (error) {
+    console.error("Error generating start of the week date:", error);
+    return new Date().toISOString().split("T")[0];
+  }
+};
+
+// Get the start of the month in Todoist-compatible format (YYYY-MM-DD)
+const getStartOfMonthDate = () => {
+  try {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    return startOfMonth.toISOString().split("T")[0];
+  } catch (error) {
+    console.error("Error generating start of the month date:", error);
+    return new Date().toISOString().split("T")[0];
+  }
+};
+
 // Request access token from background script
 async function getAccessToken(forceNew = false) {
   try {
@@ -34,10 +60,8 @@ async function getAccessToken(forceNew = false) {
   }
 }
 
-// Fetch completed tasks for today from Todoist Sync API
-async function fetchCompletedTasks(token) {
-  const today = getTodayDate();
-
+// Fetch completed tasks for a given date range from Todoist Sync API
+async function fetchCompletedTasks(token, since, until) {
   try {
     const response = await fetch(TODOIST_COMPLETED_API_URL, {
       method: "POST",
@@ -45,41 +69,21 @@ async function fetchCompletedTasks(token) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`
       },
-      body: JSON.stringify({
-        since: `${today}T00:00`,
-        until: `${today}T23:59`
-      })
+      body: JSON.stringify({ since, until })
     });
 
-    try {
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      try {
-        const completedTasks = data.items.map(item => {
-          try {
-            return {
-              id: item.id,
-              content: item.content,
-              date_completed: item.completed_at
-            };
-          } catch (mapError) {
-            console.error("Error mapping individual task:", mapError);
-            return null;
-          }
-        }).filter(task => task !== null);
-
-        return completedTasks;
-      } catch (filterError) {
-        console.error("Error processing API data:", filterError);
-        return [];
-      }
-    } catch (jsonError) {
-      console.error("Error parsing API response:", jsonError);
-      return [];
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
     }
+
+    const data = await response.json();
+    const completedTasks = data?.items?.map(item => ({
+      id: item.id,
+      content: item.content,
+      date_completed: item.completed_at
+    }));
+
+    return completedTasks;
   } catch (error) {
     console.error("Error fetching completed tasks:", error);
     return [];
@@ -113,8 +117,11 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
     return;
   }
 
-  chrome.storage.local.get("lastRun", async (result) => {
+  chrome.storage.local.get(["lastRun", "testToken", "foldableStates"], async (result) => {
     const lastRun = result.lastRun || 0;
+    const token = result.testToken || "default_token"; // Use the saved token or a default one
+    const foldableStates = result.foldableStates || {};
+
     if (now - lastRun < RUN_COOLDOWN) {
       console.log(`Skipping displayTasksOnPage from ${source} - on cooldown`);
       return;
@@ -125,71 +132,73 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
 
     try {
       console.log(`Running displayTasksOnPage from ${source}`);
-      const token = await getAccessToken(forceNewToken);
-      const tasks = await fetchCompletedTasks(token);
+      const today = getTodayDate();
+      const startOfWeek = getStartOfWeekDate();
+      const startOfMonth = getStartOfMonthDate();
 
-      let container;
-      try {
-        container = document.createElement("div");
-        container.id = "completedTasksContainer";
-        container.innerHTML = "<h3>Completed Tasks</h3>";
-      } catch (createError) {
-        console.error("Error creating container div:", createError);
-        return;
-      }
+      const [todayTasks, weekTasks, monthTasks] = await Promise.all([
+        fetchCompletedTasks(token, `${today}T00:00`, `${today}T23:59`),
+        fetchCompletedTasks(token, `${startOfWeek}T00:00`, `${today}T23:59`),
+        fetchCompletedTasks(token, `${startOfMonth}T00:00`, `${today}T23:59`)
+      ]);
 
-      let taskList;
-      try {
-        taskList = document.createElement("ul");
+      const createTaskList = (tasks) => {
+        const taskList = document.createElement("ul");
         taskList.style.fontSize = "1.2rem";
         if (tasks.length === 0) {
-          taskList.innerHTML = "<li>No tasks completed today.</li>";
+          taskList.innerHTML = "<li>No tasks completed.</li>";
         } else {
           tasks.forEach(task => {
-            try {
-              const li = document.createElement("li");
-              li.textContent = `${task.content} (Completed: ${new Date(task.date_completed).toLocaleTimeString()})`;
-              taskList.appendChild(li);
-            } catch (taskError) {
-              console.error("Error creating task element:", taskError);
-            }
+            const li = document.createElement("li");
+            li.textContent = `${task.content} (Completed: ${new Date(task.date_completed).toLocaleTimeString()})`;
+            taskList.appendChild(li);
           });
         }
-        container.appendChild(taskList);
-      } catch (listError) {
-        console.error("Error creating task list:", listError);
-        return;
-      }
+        return taskList;
+      };
 
-      let refreshButton;
-      try {
-        refreshButton = document.createElement("button");
-        refreshButton.textContent = "Refresh";
-        refreshButton.addEventListener("click", async () => {
-          try {
-            await displayTasksOnPage(false, "refresh button");
-          } catch (clickError) {
-            console.error("Error during refresh button click:", clickError);
-          }
-        }, { once: false });
-        container.appendChild(refreshButton);
-      } catch (buttonError) {
-        console.error("Error creating or configuring refresh button:", buttonError);
-      }
+      const createFoldableSection = (title, tasks, isOpen = false) => {
+        const section = document.createElement("div");
+        const header = document.createElement("h3");
+        header.textContent = title;
+        header.style.cursor = "pointer";
+        const taskList = createTaskList(tasks);
+        taskList.style.display = isOpen ? "block" : "none";
+        header.addEventListener("click", () => {
+          const isCurrentlyOpen = taskList.style.display === "block";
+          taskList.style.display = isCurrentlyOpen ? "none" : "block";
+          foldableStates[title] = !isCurrentlyOpen;
+          chrome.storage.local.set({ foldableStates });
+        });
+        section.appendChild(header);
+        section.appendChild(taskList);
+        return section;
+      };
 
-      try {
-        const boardSections = document.querySelector(".board_view__sections");
-        if (!boardSections) {
-          throw new Error("Could not find .board_view__sections element");
-        }
-        const existingContainer = document.getElementById("completedTasksContainer");
-        if (existingContainer) {
-          existingContainer.replaceWith(container);
-        } else {
-          boardSections.appendChild(container);
-        }
-      } catch (injectError) {
-        console.error("Error injecting tasks into .board_view__sections:", injectError);
+      const container = document.createElement("div");
+      container.id = "completedTasksContainer";
+      container.innerHTML = "<h3>Completed Tasks</h3>";
+
+      container.appendChild(createFoldableSection("Today", todayTasks, foldableStates["Today"] !== false)); // Open by default
+      container.appendChild(createFoldableSection("This Week", weekTasks, foldableStates["This Week"]));
+      container.appendChild(createFoldableSection("This Month", monthTasks, foldableStates["This Month"]));
+
+      const refreshButton = document.createElement("button");
+      refreshButton.textContent = "Refresh";
+      refreshButton.addEventListener("click", async () => {
+        await displayTasksOnPage(false, "refresh button");
+      }, { once: false });
+      container.appendChild(refreshButton);
+
+      const boardSections = document.querySelector(".board_view__sections");
+      if (!boardSections) {
+        throw new Error("Could not find .board_view__sections element");
+      }
+      const existingContainer = document.getElementById("completedTasksContainer");
+      if (existingContainer) {
+        existingContainer.replaceWith(container);
+      } else {
+        boardSections.appendChild(container);
       }
     } catch (error) {
       console.error("Error in displayTasksOnPage:", error);
