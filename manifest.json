@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Todoist Completed Tasks",
-    "version": "1.31",
+    "version": "1.38",
     "description": "Displays completed Todoist tasks for today on the Todoist page.",
     "permissions": ["identity", "storage", "activeTab", "scripting"],
     "background": {
@@ -14,5 +14,10 @@
         "run_at": "document_idle"
       }
     ],
-    "options_page": "options.html"
+    "options_page": "options.html",
+    "icons": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }

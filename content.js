@@ -119,7 +119,8 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
 
   chrome.storage.local.get(["lastRun", "testToken", "foldableStates"], async (result) => {
     const lastRun = result.lastRun || 0;
-    const token = result.testToken || "default_token"; // Use the saved token or a default one
+    // const token = result.testToken || "default_token"; // Use the saved token or a default one
+    const token = await getAccessToken(forceNewToken);
     const foldableStates = result.foldableStates || {};
 
     if (now - lastRun < RUN_COOLDOWN) {
