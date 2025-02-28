@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Todoist Completed Tasks",
-    "version": "1.38",
+    "version": "1.57",
     "description": "Displays completed Todoist tasks for today on the Todoist page.",
     "permissions": ["identity", "storage", "activeTab", "scripting"],
     "background": {

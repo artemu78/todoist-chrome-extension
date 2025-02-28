@@ -110,6 +110,11 @@ async function setScriptRunning(state) {
 
 // Inject and display completed tasks under .board_view__sections
 async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
+  const path = window.location.pathname;
+  if (!path.startsWith("/app/today")) {
+    return;
+  }
+
   const now = Date.now();
   const isRunning = await isScriptRunning();
   if (isRunning) {
@@ -119,6 +124,8 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
 
   chrome.storage.local.get(["lastRun", "testToken", "foldableStates"], async (result) => {
     const lastRun = result.lastRun || 0;
+    await setScriptRunning(true);
+    
     // const token = result.testToken || "default_token"; // Use the saved token or a default one
     const token = await getAccessToken(forceNewToken);
     const foldableStates = result.foldableStates || {};
@@ -128,7 +135,6 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
       return;
     }
 
-    await setScriptRunning(true);
     chrome.storage.local.set({ lastRun: now });
 
     try {
@@ -143,27 +149,51 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
         fetchCompletedTasks(token, `${startOfMonth}T00:00`, `${today}T23:59`)
       ]);
 
-      const createTaskList = (tasks) => {
-        const taskList = document.createElement("ul");
+      const createTaskList = (tasks, includeWeekday = false) => {
+        const taskList = document.createElement("div");
         taskList.style.fontSize = "1.2rem";
+        taskList.style.listStyleType = "none"; // Remove bullet points
+        taskList.style.padding = "0"; // Remove padding
+        taskList.style.paddingLeft = "1rem"; // Add padding on left side
+      
         if (tasks.length === 0) {
-          taskList.innerHTML = "<li>No tasks completed.</li>";
+          taskList.innerHTML = "<div>No tasks completed.</div>";
         } else {
           tasks.forEach(task => {
-            const li = document.createElement("li");
-            li.textContent = `${task.content} (Completed: ${new Date(task.date_completed).toLocaleTimeString()})`;
-            taskList.appendChild(li);
+            const taskDiv = document.createElement("div");
+                        const completedDate = new Date(task.date_completed);
+            const timeString = completedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const dayString = includeWeekday ? completedDate.toLocaleDateString([], { weekday: 'short' }) : '';
+            const dateTimeString = `${dayString} ${timeString}`.trim().padEnd(10, ' '); // Ensure fixed width for alignment
+      
+            const dateTimeSpan = document.createElement("span");
+            dateTimeSpan.textContent = dateTimeString;
+            dateTimeSpan.style.fontSize = "0.9rem"; // Smaller font size
+            dateTimeSpan.style.color = "#888"; // Pale color
+            dateTimeSpan.style.marginRight = "0.5rem"; // Space between date and content
+      
+            const contentSpan = document.createElement("span");
+            contentSpan.textContent = task.content;
+            contentSpan.title = task.content; // Show full content on hover
+            contentSpan.style.maxWidth = "200px"; // Restrict max width
+            contentSpan.style.overflow = "hidden";
+            contentSpan.style.textOverflow = "ellipsis";
+            contentSpan.style.whiteSpace = "nowrap";
+      
+            taskDiv.appendChild(dateTimeSpan);
+            taskDiv.appendChild(contentSpan);
+            taskList.appendChild(taskDiv);
           });
         }
         return taskList;
       };
 
-      const createFoldableSection = (title, tasks, isOpen = false) => {
+      const createFoldableSection = (title, tasks, isOpen = false, includeWeekday = false) => {
         const section = document.createElement("div");
         const header = document.createElement("h3");
         header.textContent = title;
         header.style.cursor = "pointer";
-        const taskList = createTaskList(tasks);
+        const taskList = createTaskList(tasks, includeWeekday);
         taskList.style.display = isOpen ? "block" : "none";
         header.addEventListener("click", () => {
           const isCurrentlyOpen = taskList.style.display === "block";
@@ -181,7 +211,7 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
       container.innerHTML = "<h3>Completed Tasks</h3>";
 
       container.appendChild(createFoldableSection("Today", todayTasks, foldableStates["Today"] !== false)); // Open by default
-      container.appendChild(createFoldableSection("This Week", weekTasks, foldableStates["This Week"]));
+      container.appendChild(createFoldableSection("This Week", weekTasks, foldableStates["This Week"], true)); // Include weekday
       container.appendChild(createFoldableSection("This Month", monthTasks, foldableStates["This Month"]));
 
       const refreshButton = document.createElement("button");
