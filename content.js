@@ -118,7 +118,6 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
   const now = Date.now();
   const isRunning = await isScriptRunning();
   if (isRunning) {
-    console.log(`Skipping displayTasksOnPage from ${source} - already running`);
     return;
   }
 
@@ -131,14 +130,12 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
     const foldableStates = result.foldableStates || {};
 
     if (now - lastRun < RUN_COOLDOWN) {
-      console.log(`Skipping displayTasksOnPage from ${source} - on cooldown`);
       return;
     }
 
     chrome.storage.local.set({ lastRun: now });
 
     try {
-      console.log(`Running displayTasksOnPage from ${source}`);
       const today = getTodayDate();
       const startOfWeek = getStartOfWeekDate();
       const startOfMonth = getStartOfMonthDate();
@@ -190,9 +187,11 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
 
       const createFoldableSection = (title, tasks, isOpen = false, includeWeekday = false) => {
         const section = document.createElement("div");
+        section.style.paddingLeft = "1rem";
         const header = document.createElement("h3");
         header.textContent = title;
         header.style.cursor = "pointer";
+        header.style.fontWeight = "normal";
         const taskList = createTaskList(tasks, includeWeekday);
         taskList.style.display = isOpen ? "block" : "none";
         header.addEventListener("click", () => {
@@ -206,7 +205,8 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
         return section;
       };
 
-      const container = document.createElement("div");
+      const container = document.createElement("section");
+      container.classList.add("section");
       container.id = "completedTasksContainer";
       container.innerHTML = "<h3>Completed Tasks</h3>";
 
@@ -221,9 +221,9 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
       }, { once: false });
       container.appendChild(refreshButton);
 
-      const boardSections = document.querySelector(".board_view__sections");
+      const boardSections = document.querySelector(".view_content");
       if (!boardSections) {
-        throw new Error("Could not find .board_view__sections element");
+        throw new Error("Could not find .view_content element");
       }
       const existingContainer = document.getElementById("completedTasksContainer");
       if (existingContainer) {
@@ -241,9 +241,6 @@ async function displayTasksOnPage(forceNewToken = false, source = "unknown") {
 
 // Run initially and every 10 seconds
 try {
-  console.log("Content script initializing");
-
-  const urlPath = window.location.pathname;
   if (document.readyState === "complete" || document.readyState === "interactive") {
     displayTasksOnPage(true, "initial load");
   } else {
