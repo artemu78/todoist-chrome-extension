@@ -1,23 +1,23 @@
 {
-    "manifest_version": 3,
-    "name": "Todoist Completed Tasks",
-    "version": "1.62",
-    "description": "Displays completed Todoist tasks for today on the Todoist page.",
-    "permissions": ["identity", "storage"],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "content_scripts": [
-      {
-        "matches": ["https://app.todoist.com/app/today"],
-        "js": ["content.js"],
-        "run_at": "document_idle"
-      }
-    ],
-    "options_page": "options.html",
-    "icons": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+  "manifest_version": 3,
+  "name": "Todoist Completed Tasks",
+  "version": "1.78",
+  "description": "Displays completed Todoist tasks for today on the Todoist page.",
+  "permissions": ["identity", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://app.todoist.com/app/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
+  ],
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   }
+}
